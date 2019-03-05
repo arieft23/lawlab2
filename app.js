@@ -47,6 +47,9 @@ const requiresLogin = (req, res, next) => {
     }
 }
 
+
+/// LOGIN
+// LOGIN GET
 app.get("/login", (req,res) =>{
     res.send(`
         <html>
@@ -58,7 +61,7 @@ app.get("/login", (req,res) =>{
         </html>
     `)
 })
-
+// LOGIN POST
 app.post("/login", (req,res) =>{
     const uname = req.body.username
     const pass = req.body.password
@@ -93,6 +96,8 @@ app.post("/login", (req,res) =>{
     });
 })
 
+/// USER
+// REGISTER
 app.post("/register", requiresLogin, (req,res) => {
     const user_id = req.session.user
 
@@ -105,19 +110,29 @@ app.post("/register", requiresLogin, (req,res) => {
     })
 })
 
+
+// GET USERS
 app.get("/users", requiresLogin, (req,res) => {
-    const pageData = req.query.page
-    const limitData = req.query.limit
+    filteredUser = state.user
+    if(req.query.limit != null || req.body.limit > 0){
+        filteredUser = handleLimit(filteredUser, req.query.limit)
+        if(req.query.page != null && filteredUser.length > req.query.page){
+            filteredUser = filteredUser.slice(0, req.query.page)
+        }
+    }
     res.json({
         status : "ok",
-        page : pageData,
-        limit : limitData,
+        page : req.query.page,
+        limit : req.query.limit,
         total : state.user.length,
-        data : state.user
+        data : filteredUser
     })
 })
 
+
+/// COMMENT
 app.route('/comment')
+//POST COMMENT
     .post(requiresLogin, (req,res) =>{
         const user_id = req.session.user
         const commentData = req.body.comment
@@ -137,13 +152,22 @@ app.route('/comment')
             
         })
     })
+// GET COMMENT
     .get((req,res) => {
         const comment = getCommentById(req.query.id)
-        res.json({
-            status : "ok",
-            data : comment
-        })
+        if(comment == false){
+            res.json({
+                status: "err",
+                description : "Comment By ID Not Found"
+            })
+        }else{
+            res.json({
+                status : "ok",
+                data : comment
+            })
+        }
     })
+// DELETE COMMENT
     .delete((req, res)=>{
         const commentId = req.body.id
         const comment = getCommentById(commentId)
@@ -156,6 +180,7 @@ app.route('/comment')
         }
     })
 
+// UPDATE COMMENT
 app.post("/comment/update", (req, res) => {
     const id = req.body.id
     const comment = getCommentById(id)
@@ -173,13 +198,22 @@ app.post("/comment/update", (req, res) => {
     }
 })
 
+// GET COMMENTS
 app.get("/comments", (req,res) => {
-    const filteredComment = state.comment.filter(element => {
+    let filteredComment = state.comment.filter(element => {
         return (
             (req.query.startDate == null || new Date(element.updatedAt) >= new Date(req.query.startDate))
             && (req.query.endDate == null || new Date(element.updatedAt) <= new Date(req.query.endDate))
             && (req.query.createdBy == null || element.createdBy == req.query.createdBy))
     })
+
+    if(req.query.limit != null || req.body.limit > 0){
+        filteredComment = handleLimit(filteredComment, req.query.limit)
+        if(req.query.page != null && filteredComment.length > req.query.page){
+            filteredComment = filteredComment.slice(0, req.query.page)
+        }
+    }
+
     res.json({
         status : "ok",
         page : req.query.page,
@@ -191,7 +225,7 @@ app.get("/comments", (req,res) => {
     })
 })
 
-
+/// HELPER FUNCTION
 const getDisplayNameByUserId = (userId) =>{
     let displayName = false
     state.user.forEach(element =>{
@@ -209,6 +243,25 @@ const getCommentById = (id) => {
         if(element.id == id) comment = element
     })
     return comment
+}
+
+const handleLimit = (data, limit)=>{
+    if(data.length <= limit) return data
+    let counter = 0
+    let finalData = []
+    let tempData = []
+    data.forEach(element =>{
+        tempData.push(element)
+        if(counter == limit - 1){
+            finalData.push(tempData)
+            tempData = []
+        }
+        counter = (counter + 1) % limit
+    })
+    if(tempData.length > 0){
+        finalData.push(tempData)
+    }
+    return finalData
 }
 
 app.listen(3000, ()=>{
