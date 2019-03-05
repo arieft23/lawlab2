@@ -5,7 +5,6 @@ const bp = require('body-parser')
 const session = require('express-session')
 const randomString = require('randomstring')
 const fire = require('./fire')
-const date = new Date()
 const fireuser = fire.database().ref('user')
 const firecomment = fire.database().ref('comment')
 
@@ -122,14 +121,16 @@ app.route('/comment')
     .post(requiresLogin, (req,res) =>{
         const user_id = req.session.user
         const commentData = req.body.comment
+        const date = new Date()
+        const newId = state.comment.length == 0 ? 1 : state.comment[state.comment.length-1].id+1
         const newComment = {
-            id: state.comment.length+1,
+            id: newId,
             comment : commentData,
-            createdBy : getDisplayNameByUserId(user_id),
+            createdBy : user_id,
             createdAt : date.toISOString(),
             updatedAt : date.toISOString()
         }
-        firecomment.child(state.comment.length+1).set(newComment)
+        firecomment.child(newComment.id).set(newComment)
         res.json({
             status: "ok",
             data : newComment
@@ -143,6 +144,34 @@ app.route('/comment')
             data : comment
         })
     })
+    .delete((req, res)=>{
+        const commentId = req.body.id
+        const comment = getCommentById(commentId)
+        if(comment != false){
+            firecomment.child(commentId).remove()
+            console.log(state.comment)
+            res.json({status:'ok'})
+        }else{
+            res.json({status:'err', description:'comment by id not found'})
+        }
+    })
+
+app.post("/comment/update", (req, res) => {
+    const id = req.body.id
+    const comment = getCommentById(id)
+    if(comment != false){
+        const date = new Date()
+        const newComment = req.body.comment
+        console.log(date)
+        firecomment.child(id).update({comment: newComment, updatedAt: date.toISOString()})
+        res.json({
+            status : "ok",
+            data : getCommentById(id)
+        })
+    }else{
+        res.json({status:'err', description:'comment by id not found'})
+    }
+})
 
 app.get("/comments", (req,res) => {
     const filteredComment = state.comment.filter(element => {
@@ -162,9 +191,11 @@ app.get("/comments", (req,res) => {
     })
 })
 
+
 const getDisplayNameByUserId = (userId) =>{
     let displayName = false
     state.user.forEach(element =>{
+        console.log(element)
         if(element.userId==userId){
             displayName = element.displayName
         } 
@@ -175,7 +206,7 @@ const getDisplayNameByUserId = (userId) =>{
 const getCommentById = (id) => {
     let comment = false
     state.comment.forEach(element => {
-        if(element.id = id) comment = element
+        if(element.id == id) comment = element
     })
     return comment
 }
